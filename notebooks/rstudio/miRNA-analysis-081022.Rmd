@@ -45,7 +45,6 @@ synapser::synLogin(email= "jineta.banerjee",
 
 ```
 
-# JHU Biobank
 
 ## Download ADmiRE annotated files from PNF and MPNST samples in different studies :
 
