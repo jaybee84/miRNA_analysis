@@ -1,6 +1,6 @@
 FROM conda/miniconda3
 
-MAINTAINER parnal.joshi@sagebase.org
+LABEL maintainer="parnal.joshi@sagebase.org"
 
 RUN apt-get update && apt-get install -y gcc g++ python3 perl git make \
                                        wget curl libdb-dev xz-utils groff \
