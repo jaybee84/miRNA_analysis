@@ -18,7 +18,7 @@ RUN conda update -n base -c defaults conda
 RUN ln -sf /usr/bin/python3 /usr/bin/python
 
 # set workdir
-WORKDIR /tmp
+WORKDIR /variant_annotation
 
 # get pip for python to install packages
 RUN curl "https://bootstrap.pypa.io/pip/3.6/get-pip.py" -o get-pip.py && \
