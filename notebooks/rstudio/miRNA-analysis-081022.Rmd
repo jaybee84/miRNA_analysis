@@ -1,0 +1,387 @@
+---
+title: "DHART-SPORE CEP miRNA Analysis"
+author: Jineta Banerjee
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output: 
+  html_document:
+    toc: true
+    number_sections: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+    fig_width: 7
+    fig_height: 6
+    fig_caption: true
+    df_print: paged 
+    #code_folding: true 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(engine.opts = list(bash = "-l")) #execute bash
+```
+
+```{r lib_synapser, echo=FALSE, eval=TRUE, results='hide', message=FALSE, warning=FALSE, include=FALSE}
+
+library(synapser)
+library(synapserutils)
+
+library(BiocManager)
+library(gProfileR)
+library(tidyverse)
+library(DT)
+library(stringr) 
+library(RColorBrewer)
+library(wesanderson)
+library(tm)
+library(wordcloud)
+```
+
+```{r login_to_synapse, eval=TRUE, echo=FALSE, results='hide', message=FALSE, warning=FALSE, include=FALSE}
+
+## The login credentials have been stored in .synapseConfig file in the home dir. If you dont have this setup, please make the file before trying to login.
+synapser::synLogin(email= "jineta.banerjee",
+                   apiKey= )
+
+```
+
+
+## Download ADmiRE annotated files from PNF and MPNST samples in different studies :
+
+```{r admire-1}
+
+list_of_files <- c("syn33233584", "syn33232124", "syn33232139", "syn33232172", "syn33243110",
+                   "syn33387315", "syn33387327", "syn33387336", "syn33387344", "syn33387351", "syn33387365", "syn33243152",
+                   "syn33243159", "syn33245032", "syn33245042")
+
+for (i in list_of_files){
+  synapser::synGet(i, downloadLocation = "/home/ubuntu/Data_files/miRNA")
+}
+
+```
+
+### Preliminary selection of ADmiRE columns:
+
+
+```{bash admire-2}
+
+cut -f 115- /home/ubuntu/Data_files/miRNA/VA09.hg38_multianno.admire.tab > /home/ubuntu/Data_files/miRNA/VA09.tsv 
+cut -f 115- /home/ubuntu/Data_files/miRNA/VA08.hg38_multianno.admire.tab > /home/ubuntu/Data_files/miRNA/VA08.tsv
+cut -f 115- /home/ubuntu/Data_files/miRNA/VA07.hg38_multianno.admire.tab > /home/ubuntu/Data_files/miRNA/VA07.tsv
+cut -f 115- /home/ubuntu/Data_files/miRNA/VA06.hg38_multianno.admire.tab > /home/ubuntu/Data_files/miRNA/VA06.tsv
+cut -f 115- /home/ubuntu/Data_files/miRNA/VA05.hg38_multianno.admire.tab > /home/ubuntu/Data_files/miRNA/VA05.tsv
+cut -f 115- /home/ubuntu/Data_files/miRNA/VA03.hg38_multianno.admire.tab > /home/ubuntu/Data_files/miRNA/VA03.tsv
+cut -f 115- /home/ubuntu/Data_files/miRNA/JHU002-048.hg38_multianno.admire.tab > /home/ubuntu/Data_files/miRNA/JHU002-048.tsv
+cut -f 115- /home/ubuntu/Data_files/miRNA/JHU023-044.hg38_multianno.admire.tab > /home/ubuntu/Data_files/miRNA/JHU023-044.tsv
+cut -f 115- /home/ubuntu/Data_files/miRNA/JHU023-049.hg38_multianno.admire.tab > /home/ubuntu/Data_files/miRNA/JHU023-049.tsv
+cut -f 115- /home/ubuntu/Data_files/miRNA/JHU031-045.hg38_multianno.admire.tab > /home/ubuntu/Data_files/miRNA/JHU031-045.tsv
+cut -f 115- /home/ubuntu/Data_files/miRNA/JHU031-050.hg38_multianno.admire.tab > /home/ubuntu/Data_files/miRNA/JHU031-050.tsv
+cut -f 115- /home/ubuntu/Data_files/miRNA/WU505-041.hg38_multianno.admire.tab > /home/ubuntu/Data_files/miRNA/WU505-41.tsv
+cut -f 115- /home/ubuntu/Data_files/miRNA/WU505-046.hg38_multianno.admire.tab > /home/ubuntu/Data_files/miRNA/WU505-46.tsv
+cut -f 115- /home/ubuntu/Data_files/miRNA/WU545-042.hg38_multianno.admire.tab > /home/ubuntu/Data_files/miRNA/WU545-42.tsv
+cut -f 115- /home/ubuntu/Data_files/miRNA/WU545-047.hg38_multianno.admire.tab > /home/ubuntu/Data_files/miRNA/WU545-47.tsv
+
+```
+
+### Concatenate all sample files and add tumorType:
+
+```{r admire-3}
+
+not_all_na <- function(x) any(!is.na(x))
+
+# setwd("/home/ubuntu/Data_files/miRNA/")
+# tbl <- list.files( pattern = "*.tsv") %>% map_df(~read_tsv(.))
+
+a1 <- read.csv("/home/ubuntu/Data_files/miRNA/VA09.tsv", sep="\t") %>% 
+  dplyr::filter(is.na(MIRNA) == FALSE) %>% 
+  dplyr::select(where(not_all_na)) %>% 
+  mutate(tumorType = "PNF")
+
+a2 <- read.csv("/home/ubuntu/Data_files/miRNA/VA08.tsv", sep="\t") %>% 
+  dplyr::filter(is.na(MIRNA) == FALSE) %>% 
+  dplyr::select(where(not_all_na)) %>% 
+  mutate(tumorType = "PNF")
+a3 <- read.csv("/home/ubuntu/Data_files/miRNA/VA07.tsv", sep="\t") %>% 
+  dplyr::filter(is.na(MIRNA) == FALSE) %>% 
+  dplyr::select(where(not_all_na)) %>% 
+  mutate(tumorType = "PNF")
+a4 <- read.csv("/home/ubuntu/Data_files/miRNA/VA06.tsv", sep="\t") %>% 
+  dplyr::filter(is.na(MIRNA) == FALSE) %>% 
+  dplyr::select(where(not_all_na)) %>% 
+  mutate(tumorType = "PNF")
+a5 <- read.csv("/home/ubuntu/Data_files/miRNA/VA05.tsv", sep="\t") %>% 
+  dplyr::filter(is.na(MIRNA) == FALSE) %>% 
+  dplyr::select(where(not_all_na)) %>% 
+  mutate(tumorType = "PNF")
+a6 <- read.csv("/home/ubuntu/Data_files/miRNA/VA03.tsv", sep="\t") %>% 
+  dplyr::filter(is.na(MIRNA) == FALSE) %>% 
+  dplyr::select(where(not_all_na)) %>% 
+  mutate(tumorType = "PNF")
+
+PNF <- bind_rows(a1,a2,a3,a4,a5,a6)
+
+b1 <- read.csv("/home/ubuntu/Data_files/miRNA/JHU002-048.tsv", sep="\t") %>% 
+  dplyr::filter(is.na(MIRNA) == FALSE) %>% 
+  dplyr::select(where(not_all_na)) %>% 
+  mutate(tumorType = "MPNST")
+
+b2 <- read.csv("/home/ubuntu/Data_files/miRNA/JHU023-044.tsv", sep="\t") %>% 
+  dplyr::filter(is.na(MIRNA) == FALSE) %>% 
+  dplyr::select(where(not_all_na)) %>% 
+  mutate(tumorType = "MPNST")
+
+b3 <- read.csv("/home/ubuntu/Data_files/miRNA/JHU023-049.tsv", sep="\t") %>% 
+  dplyr::filter(is.na(MIRNA) == FALSE) %>% 
+  dplyr::select(where(not_all_na)) %>% 
+  mutate(tumorType = "MPNST")
+
+b4 <- read.csv("/home/ubuntu/Data_files/miRNA/JHU031-045.tsv", sep="\t") %>% 
+  dplyr::filter(is.na(MIRNA) == FALSE) %>% 
+  dplyr::select(where(not_all_na)) %>% 
+  mutate(tumorType = "MPNST")
+
+b5 <- read.csv("/home/ubuntu/Data_files/miRNA/JHU031-050.tsv", sep="\t") %>% 
+  dplyr::filter(is.na(MIRNA) == FALSE) %>% 
+  dplyr::select(where(not_all_na)) %>% 
+  mutate(tumorType = "MPNST")
+
+b6 <- read.csv("/home/ubuntu/Data_files/miRNA/WU505-41.tsv", sep="\t") %>% 
+  dplyr::filter(is.na(MIRNA) == FALSE) %>% 
+  dplyr::select(where(not_all_na)) %>% 
+  mutate(tumorType = "MPNST")
+
+b7 <- read.csv("/home/ubuntu/Data_files/miRNA/WU505-46.tsv", sep="\t") %>% 
+  dplyr::filter(is.na(MIRNA) == FALSE) %>% 
+  dplyr::select(where(not_all_na)) %>% 
+  mutate(tumorType = "MPNST")
+
+b8 <- read.csv("/home/ubuntu/Data_files/miRNA/WU545-42.tsv", sep="\t") %>% 
+  dplyr::filter(is.na(MIRNA) == FALSE) %>% 
+  dplyr::select(where(not_all_na)) %>% 
+  mutate(tumorType = "MPNST")
+
+b9 <- read.csv("/home/ubuntu/Data_files/miRNA/WU545-47.tsv", sep="\t") %>% 
+  dplyr::filter(is.na(MIRNA) == FALSE) %>% 
+  dplyr::select(where(not_all_na)) %>% 
+  mutate(tumorType = "MPNST")
+
+MPNST <- bind_rows(b1,b2,b3,b4,b5,b6,b7,b8,b9)
+
+admire <- bind_rows(PNF,MPNST)
+```
+
+### Plot different features to explore:
+
+```{r admire-4, echo=FALSE, eval=TRUE, results='hide', message=FALSE, warning=FALSE, fig.height=20,fig.width=20, results='show', message=FALSE, warning=FALSE}
+
+admire$gnomAD_genome_ALL <- as.numeric(as.character(admire$gnomAD_genome_ALL))
+
+new_file <- admire %>% 
+  dplyr::filter(gnomAD_genome_ALL < 0.01) 
+
+new_file$MIRNA_Domain <- as.factor(new_file$MIRNA_Domain)
+
+#pdf("/home/ubuntu/Analysis/numberOfmiRna.pdf",height = 20, width = 20)
+new_file %>% 
+  dplyr::select(tumorType,MIRNA) %>% 
+  unique() %>% 
+  group_by(tumorType) %>%
+  ggplot(aes(x=tumorType))+
+    geom_bar(aes(x=tumorType),position='dodge')+
+    ggtitle('Number of miRNA detected in samples')+
+  theme_bw()+
+  theme(legend.text = element_text(size=20), #element_text(size=8),
+              axis.text.x  = element_text(size=40, angle = 0),
+              axis.text.y = element_text(size=40),
+              text = element_text(size=40),
+              strip.text.x = element_text(size = 40),
+              legend.position="none",
+              panel.grid = element_blank(),
+              panel.background = element_rect(fill = "white"))
+#dev.off()
+
+#pdf("/home/ubuntu/Analysis/miRnaDomain_all.pdf", height = 20, width = 20)
+new_file %>% 
+  dplyr::select(tumorType,MIRNA_Domain, MIRNA) %>% 
+  mutate(mirna_and_domain = as.factor(stringr::str_c(MIRNA,MIRNA_Domain))) %>% 
+  dplyr::filter(MIRNA_Domain %in% c("5p_Mature", "3p_Mature", "5p_Seed", "3p_Seed", "Precursor_Loop", "Precursor_3PrimeEnd", "Precursor_5PrimeEnd")) %>% 
+  unique() %>% 
+  group_by(tumorType) %>%
+  ggplot(aes(x=MIRNA_Domain))+
+    geom_bar(aes(x=MIRNA_Domain, fill=as.factor(tumorType)),position='dodge')+
+    ggtitle('Number of miRNA domains detected with variants in samples')+
+  theme_bw()+
+  theme(legend.text = element_text(size=20), #element_text(size=8),
+              axis.text.x  = element_text(size=40, angle = 90),
+              axis.text.y = element_text(size=40),
+              text = element_text(size=40),
+              strip.text.x = element_text(size = 40),
+              legend.position="right",
+              panel.grid = element_blank(),
+              panel.background = element_rect(fill = "white"))
+#dev.off()
+
+
+mir_file <- new_file %>% 
+  dplyr::select(VCF_SAMPLE_ID, tumorType, MIRNA, MIRNA_Domain, GT, VAF, gnomAD_genome_ALL, High_Confidence, miRTarBase_NumberOfTargets, miRTarBase_Reference_PMID, TranscriptionFactor_PMID,gnomAD_MAF)
+
+
+MPNSTmiRs <- mir_file$MIRNA[mir_file$tumorType == "MPNST"] 
+PNFmiRs <- mir_file$MIRNA[mir_file$tumorType == "PNF"]
+
+#pdf("/home/ubuntu/Analysis/VarinOneTumor.pdf", height = 40, width = 20)
+mir_file %>% 
+  dplyr::select(MIRNA, MIRNA_Domain, miRTarBase_NumberOfTargets, VCF_SAMPLE_ID, tumorType) %>% 
+    dplyr::filter(MIRNA_Domain %in% c("5p_Mature", "3p_Mature", "5p_Seed", "3p_Seed", "Precursor_Loop", "Precursor_3PrimeEnd", "Precursor_5PrimeEnd")) %>%
+  dplyr::filter(!MIRNA %in% intersect(MPNSTmiRs, PNFmiRs)) %>% 
+  dplyr::select(MIRNA, miRTarBase_NumberOfTargets, tumorType, VCF_SAMPLE_ID) %>% 
+  mutate(present =1) %>% 
+  unique() %>% 
+  group_by(MIRNA, tumorType) %>%
+  ggplot(aes(present, MIRNA))+
+  geom_col()+
+  facet_grid(cols = vars(VCF_SAMPLE_ID))+
+  ggtitle('Number of targets of miRNAs present in one tumorType')+
+  theme_bw()+
+  theme(legend.text = element_text(size=20), #element_text(size=8),
+              axis.text.x  = element_text(size=00, angle = 90),
+              axis.text.y = element_text(size=40),
+              text = element_text(size=40),
+              strip.text.x = element_text(size = 40),
+              legend.position="none",
+              panel.grid = element_blank(),
+              panel.background = element_rect(fill = "white"))
+#dev.off()
+
+pdf("/home/ubuntu/Analysis/miRnaDomain_in_onetumorType.pdf", height = 20, width = 20)
+new_file %>% 
+  dplyr::select(tumorType,MIRNA_Domain, MIRNA) %>% 
+  mutate(mirna_and_domain = as.factor(stringr::str_c(MIRNA,MIRNA_Domain))) %>% 
+  dplyr::filter(!MIRNA %in% intersect(MPNSTmiRs, PNFmiRs)) %>%
+  dplyr::filter(MIRNA_Domain %in% c("5p_Mature", "3p_Mature", "5p_Seed", "3p_Seed", "Precursor_Loop", "Precursor_3PrimeEnd", "Precursor_5PrimeEnd")) %>% 
+  unique() %>% 
+  group_by(tumorType) %>%
+  ggplot(aes(x=MIRNA_Domain))+
+    geom_bar(aes(x=MIRNA_Domain, fill=as.factor(tumorType)),position='dodge')+
+    ggtitle('Number of miRNA domains detected with variants in samples')+
+  theme_bw()+
+  theme(legend.text = element_text(size=20), #element_text(size=8),
+              axis.text.x  = element_text(size=40, angle = 90),
+              axis.text.y = element_text(size=40),
+              text = element_text(size=40),
+              strip.text.x = element_text(size = 40),
+              legend.position="right",
+              panel.grid = element_blank(),
+              panel.background = element_rect(fill = "white"))
+dev.off()
+
+#pdf("/home/ubuntu/Analysis/numTargets.pdf", height = 20, width = 30)
+mir_file %>% 
+  dplyr::select(MIRNA, miRTarBase_NumberOfTargets, tumorType) %>% 
+  dplyr::filter(!MIRNA %in% intersect(MPNSTmiRs, PNFmiRs)) %>% 
+  dplyr::filter(miRTarBase_NumberOfTargets > 0) %>% 
+  unique() %>% 
+  group_by(MIRNA) %>%
+  ggplot(aes(MIRNA, miRTarBase_NumberOfTargets))+
+  geom_col(aes(fill = as.factor(tumorType)))+
+  #facet_grid(rows = vars(tumorType))+
+  ggtitle('Number of targets of miRNAs present in one tumorType')+
+  theme_bw()+
+  theme(legend.text = element_text(size=20), #element_text(size=8),
+              axis.text.x  = element_text(size=30, angle = 90),
+              axis.text.y = element_text(size=40),
+              text = element_text(size=40),
+              strip.text.x = element_text(size = 40),
+              legend.position="right",
+              panel.grid = element_blank(),
+              panel.background = element_rect(fill = "white")) 
+#dev.off()
+
+geneList <- mir_file %>% 
+  dplyr::select(MIRNA, miRTarBase_Reference_PMID, TranscriptionFactor_PMID, tumorType) %>% 
+  dplyr::filter(!MIRNA %in% intersect(MPNSTmiRs, PNFmiRs)) %>% 
+  unique() %>% 
+  na.omit()
+```
+
+### Word cloud of Target genes for miRNAs with variants:
+
+```{r admire-5, echo=FALSE, eval=TRUE, results='hide', message=FALSE, warning=FALSE, fig.height=20,fig.width=20, results='show', message=FALSE, warning=FALSE}
+
+mpnst <- "FOXN3 RXRA EP300 RAC1 Nusap1 CUL2 Dera EGFR LGALS3BP CAV1 BACE1 CYP2C8 ARNT AGO1 VEGFA PRKCE HIF1A GRN NOTCH2 LATS2 PLAG1 SALL4 CDK6 PTEN NFIA CHRM1 KLF4 DICER1 JAK1FBXW7 RAD51 CDK8 IL6 MYB AXIN2 DAPK1 SNCG FOXO1 FAM160B2 SRF RASGRF1 BBC3 PARD3 IGF1 Gmnn CDK4 MAPK3 Nhp2 SMAD4 Ube2c ALCAM ABCC1 CDKN1A NTRK3 SMR3B BMI1 PBX3 MTA3 SOX9 ATP7A PTP4A3 MEIS1 MAT1A TBC1D9 MYCBP BDNF HDAC4 HTR2C TCEAL1 RCOR1 BMP6 RGS2 ARPC5 TFRC NCOA1 BTG1 TIAM1 CYR61 SP1 BMPR1B BSG ACVR1C HDAC6 CD151 PTMS CDKN1A CSF1R PPARA HIF1A WNT1 LGALS1 MAOA HMGB1 PTEN IRF5 NET1 ERBB3 TET2 ESR1 BMP7 PTCH1 RB1 IRAK4 ACHE CCNB1 TJP1 PEA15 KCNJ2 RBP2 CCNA2 SOD2 MYC MECP2 TPM1 NR4A3 CDKN1A BUB1 PPARA PLK1 BCL2L11 PIEZO1 HOXD10 CDKN2A HTATIP2 MAPRE1 CCNA2 TP53 DDX58 PTEN TRA2B KLF4 NOTCH1 TIAM1 NCOR2 TFAP2C NRP2 PDCD4 SRSF1 NF1 PAX6 SDC1CDKN1A BMI1 CDK1 CDK4 CCND1 LEFTY2 DAZAP2 AKT1 NANOG NR2F2 MBD2 TAC1 SLAIN1 CDK2 TOB2 LEFTY1AKT1 VEGFA ERBB4 TRPS1 LEFTY2 NR4A2 CDK2 LEFTY1 CCND2 KLF13 MBNL2ARPC5L FOXA2 RB1 RUNX2 SOX4 DAAM2 BRCA1 TFF2 BCL2L2 ROCK1 ID4 LRG1 TNC FMNL3 SOX17 IGF1R ZEB2 EPN2 RASA1 MERTK SP1 PTPRN2 FMN2 POU5F1 MYC UBE2F MAPK1 BIRC5 PTEN CHL1 EPHA4 TRA2B PIK3CG USF2 HOXA1 MAP3K7 NCOR2 SRSF1 BTRC"
+
+docs <- Corpus(VectorSource(mpnst))
+docs <- docs %>%
+  #tm_map(removeNumbers) %>%
+  tm_map(removePunctuation) %>%
+  tm_map(stripWhitespace)
+#docs <- tm_map(docs, content_transformer(tolower))
+docs <- tm_map(docs, removeWords, stopwords("english"))
+
+dtm <- TermDocumentMatrix(docs) 
+matrix <- as.matrix(dtm) 
+words <- sort(rowSums(matrix),decreasing=TRUE) 
+df <- data.frame(word = names(words),freq=words)
+
+set.seed(1234) # for reproducibility 
+wordcloud(words = df$word, freq = df$freq, min.freq = 1,           
+          max.words=500, random.order=FALSE, rot.per=0.35,            
+          colors=brewer.pal(8, "Dark2"))
+
+#pdf("/home/ubuntu/Analysis/freqTargets.pdf", height = 20, width = 30)
+df[(1:50),] %>% 
+  ggplot(aes(reorder(word, -freq, sum), freq))+
+  geom_col()+
+  ggtitle('MPNST: Frequency of target genes for miRNAs with variants')+
+  theme_bw()+
+  theme(legend.text = element_text(size=20), #element_text(size=8),
+              axis.text.x  = element_text(size=40, angle = 90),
+              axis.text.y = element_text(size=40),
+              text = element_text(size=40),
+              strip.text.x = element_text(size = 40),
+              legend.position="right",
+              panel.grid = element_blank(),
+              panel.background = element_rect(fill = "white")) 
+#dev.off()
+
+
+pnf <- "PTEN FGA FGG TTN CFTR NOTCH1 MET FGB MTOR(22983984); PLAG1(19347935); TGFB1(21991303); ZFX(22955854); EZH2(23815091); NFE2L2(23236440); PRPF4B(23466643); DKK1(22020335); TGFBR2(21490602, 22020335); ATAD2(24552534); NFIB(21608007); VEGFA(18320040); CDKN1A(18212054, 20190813); DKK1(22020335); ERBB4(19885849); NR4A2(19885849); LATS2(18155131, 20216554, 16564011, 22027184, 19937137); KLF13(19229866); MBNL2(19229866); BTG1(22020335); WEE1(19823043); TRPS1(19229866);CCNA1(21646351); CDK2(21646351, 23479742); TNFAIP1(23242208); LEFTY1(22020335); RHOC(21490602);MARK2(24009311); PHLPP1(21750348, 23396362); IGF1(24962367); KCNQ5(24446351); CDKN1B(17627278);RALA(24063364); ALDH1A1(23752191); VEGFA(18320040); MMD(24971538); SOX2(23060440); HDAC4(19734943); OSTM1(23389033); SOX9(23752191); DNMT1(22898998); ADA(24530397); LAMC1(24530397); IGF1R(24039995); TGFBR1(23401231); NRIP1(21798241); PDGFRA(22012839); DNPEP(21576357); FGF9(23401231); CD38(22773691); HDAC7(24530397); PAX6(24530397);CAV1(24623846); ERCC4(21672525); RB1(21511813, 24012720); MAD2L1(19074876); BCL2(19074876); CDKN1B(17627278); CUL5(19074876); CDC7(19074876); WNK1(20813867); MCM10(19074876); PRPF38A(19074876); TRAPPC2P1(18835392); SEPT10(19074876); PIM1(19074876); ALCAM(21119604); MIS12(19074876); KIF20B(19074876); DTL(19074876); ERCC3(19074876, 21672525); RACGAP1(19074876); ACVR2B(22431721); DICER1(24223844); SMARCB1(19074876); ATP1B1(23221637); HRH1(19074876); DLG5(19074876); LMNB2(19074876); HOXA10(19074876);SREBF1(23951060); SREBF2(23951060); GEMIN4(21172025); BMP7(21172025); DNMT1(21565830); ID4(24475217); HIPK3(24149837); CD276(23916610); TNF(23071313);SHC1(20005803); YAP1(23340296); ERBB2IP(20005803); ELMO2(20005803); GEMIN2(18381893); RIN2(20005803); ZEB1(18376396, 18411277, 19703993, 18381893, 19854497, 18829540, 21049046, 21389093, 21874049, 23381389, 24127332); Zeb1(19167416); RASSF2(20005803); AREG(24762440); CTNNB1(19703993, 19931509, 22211245); BAP1(20005803); SMAD2(22020340); KLF11(20005803); ATRX(23708087); ZEB2(18411277, 19703993, 18381893, 18376396, 19854497, 18829540, 19931509, 21049046, 21389093, 21529905, 23386720, 23381389, 24518294, 22012804, 24127332); HFE(23708087); MAPK14(22101765); KLHL20(20005803); DLC1(23708087); HOXB5(20005803); KEAP1(21914820); VAC14(20005803); ZFPM2(20005803); TFAM(24684598); PTPRD(20005803); TRAPPC2P1(18835392); Zeb2(19167416); DNMT1(25595591); TP53(23144891); EZH2(25595591); CDK6(24009066); PTEN(24413994); SRF(22907787); TCF7L1(20005803); UBASH3B(23784775); DLX5(19454767); CCNE2(22183793); WASF3(19801681); SEPT7(20005803); WDR37(20005803); SMAD3(22020340); MYB(22101269); GRB2(23874841); GDAP1(20827281); PTBP1(22895557); RHOA(24980435); SOX2(22797059); HNRNPA2B1(22895557); KRAS(23667495); MET(21225860); ROCK1(23872151); MECP2(23667495); MECP2(19897480, 20388499); CYP19A1(23438603); TGFBR2(22912877); RB1(20643754, 16461460, 20889678); VEGFA(18320040); CDKN1A(18212054, 19782699, 20190813, 20385818); RBL2(24045973); ARID4B(17575136); CASP7(23807165); CCND1(23836497); SLC2A3(24124917); E2F1(20643754, 21656380); APP(19110058, 18684319); MAPK9(23029228); LIMK1(23029228); RUNX3(23932924); FASTK(24013584); PTEN(24108762); TIMP2(24440352, 24444603); BCL10(23807165); IL10(19307576); SIRPA(23562609); BMP2(23399447); ATM(23857602); MYLIP(17575136); RUNX1(17589498); HIPK3(17575136); FAS(22431000); STAT3(23836497, 23399684);SMAD2(23916701); TNRC6B(23496901); FOXN1(24383669); ESR1(19684618); CTGF(23681229); MDM2(23365201); "
+
+pnf_clean <- gsub("\\s*\\([^\\)]+\\)","",as.character(pnf))
+
+docs <- Corpus(VectorSource(pnf_clean))
+docs <- docs %>%
+  #tm_map(removeNumbers) %>%
+  tm_map(removePunctuation) %>%
+  tm_map(stripWhitespace)
+#docs <- tm_map(docs, content_transformer(tolower))
+docs <- tm_map(docs, removeWords, stopwords("english"))
+
+dtm <- TermDocumentMatrix(docs) 
+matrix <- as.matrix(dtm) 
+words <- sort(rowSums(matrix),decreasing=TRUE) 
+df <- data.frame(word = names(words),freq=words)
+
+set.seed(1234) # for reproducibility 
+wordcloud(words = df$word, freq = df$freq, min.freq = 1,           
+          max.words=500, random.order=FALSE, rot.per=0.35,            
+          colors=brewer.pal(8, "Dark2"))
+
+#pdf("/home/ubuntu/Analysis/freqTargets.pdf", height = 20, width = 30)
+df[(1:50),] %>% 
+  ggplot(aes(reorder(word, -freq, sum), freq))+
+  geom_col()+
+  ggtitle('MPNST: Frequency of target genes for miRNAs with variants')+
+  theme_bw()+
+  theme(legend.text = element_text(size=20), #element_text(size=8),
+              axis.text.x  = element_text(size=40, angle = 90),
+              axis.text.y = element_text(size=40),
+              text = element_text(size=40),
+              strip.text.x = element_text(size = 40),
+              legend.position="right",
+              panel.grid = element_blank(),
+              panel.background = element_rect(fill = "white")) 
+#dev.off()
+
+```
+
